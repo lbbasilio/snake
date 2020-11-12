@@ -5,16 +5,27 @@
 #include <stdlib.h>
 #include <time.h>
 
+// Colors
+// format: 0x00BBGGRR (thanks microsoft u_u)
+#define CBODY 0x0000FF00
+#define CHEAD 0x004000FF
+#define CWALL 0x00888888
+#define CTGT  0x001966FF
+#define CGND  0x00000000
+
+// Board Size
 #define PIXEL 20
 #define WIDTH 30
 #define HEIGHT 30
 #define SCREEN WIDTH * HEIGHT
 
+// Board Values
 #define GROUND -1
 #define WALL -20
 #define TARGET -30
 
-#define FPS 10.0f
+// Speed
+#define FPS 15.0f
 
 int main()
 {
@@ -55,6 +66,17 @@ int Init (int nScreenWidth, int nScreenHeight)
 	cfi.FontFamily = FF_DONTCARE;
 	cfi.FontWeight = 400;
 	SetCurrentConsoleFontEx (hConsole, FALSE, &cfi);
+
+	// Set color info
+	CONSOLE_SCREEN_BUFFER_INFOEX csbi;
+	csbi.cbSize = sizeof (CONSOLE_SCREEN_BUFFER_INFOEX);
+	GetConsoleScreenBufferInfoEx (hConsole, &csbi);
+	csbi.ColorTable[0] = CBODY;
+	csbi.ColorTable[1] = CHEAD;
+	csbi.ColorTable[2] = CWALL;
+	csbi.ColorTable[3] = CTGT;
+	csbi.ColorTable[4] = CGND;
+	SetConsoleScreenBufferInfoEx (hConsole, &csbi);
 
 	// Set cursor info
 	CONSOLE_CURSOR_INFO cci;
@@ -235,11 +257,11 @@ void DrawGame (int* game, char* pxChars, WORD* pxColors)
 	{
 		switch (game[i])	
 		{
-			case WALL: pxColors[i] = FOREGROUND_INTENSITY; break;
-			case GROUND: pxColors[i] = 0; break;
-			case TARGET: pxColors[i] = FOREGROUND_RED | FOREGROUND_GREEN; break;
-			case 0: pxColors[i] = FOREGROUND_RED; break;
-			default: pxColors[i] = FOREGROUND_GREEN; break;
+			case WALL: pxColors[i] = 0x2; break;
+			case GROUND: pxColors[i] = 0x4; break;
+			case TARGET: pxColors[i] = 0x3; break;
+			case 0: pxColors[i] = 0x1; break;
+			default: pxColors[i] = 0x0; break;
 		}
 	}
 
