@@ -5,13 +5,16 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define WIDTH 60
-#define HEIGHT 60
+#define PIXEL 20
+#define WIDTH 30
+#define HEIGHT 30
 #define SCREEN WIDTH * HEIGHT
 
 #define GROUND -1
 #define WALL -20
 #define TARGET -30
+
+#define FPS 10.0f
 
 int main()
 {
@@ -47,8 +50,8 @@ int Init (int nScreenWidth, int nScreenHeight)
 	CONSOLE_FONT_INFOEX cfi;
 	cfi.cbSize = sizeof(cfi);
 	cfi.nFont = 0;
-	cfi.dwFontSize.X = 10;
-	cfi.dwFontSize.Y = 10;
+	cfi.dwFontSize.X = PIXEL;
+	cfi.dwFontSize.Y = PIXEL;
 	cfi.FontFamily = FF_DONTCARE;
 	cfi.FontWeight = 400;
 	SetCurrentConsoleFontEx (hConsole, FALSE, &cfi);
@@ -74,23 +77,8 @@ int Init (int nScreenWidth, int nScreenHeight)
 	return 0;
 }
 
-void GameLoop (char* pxChars, WORD* pxColors)
+void GameInit (int* game)
 {
-	srand(time(NULL));
-
-	memset(pxChars, 219, SCREEN);
-	memset(pxColors, 0, SCREEN * sizeof(WORD));
-
-	int* game = malloc (SCREEN * sizeof(int)); 
-
-	int nHeadX = WIDTH / 2;
-	int nHeadY = HEIGHT / 2;
-	int nSize = 5;
-	int nCount = nSize;
-
-	int nTgtX = nHeadX + WIDTH / 8;
-	int nTgtY = nHeadY + HEIGHT / 8;
-
 	// Initial game state
 	int i;
 	for (i = 0; i < SCREEN; ++i)
@@ -102,59 +90,129 @@ void GameLoop (char* pxChars, WORD* pxColors)
 		else game[i] = GROUND;
 		
 	}
+}
+
+void GameLoop (char* pxChars, WORD* pxColors)
+{
+	// Initiate rng
+	srand(time(NULL));
+
+	// Set character buffers
+	memset(pxChars, 219, SCREEN);
+	memset(pxColors, 0, SCREEN * sizeof(WORD));
+
+	// Initiate board
+	int* game = malloc (SCREEN * sizeof(int)); 
+	GameInit (game);
+
+	// Snake variables
+	int nHeadX = WIDTH / 2;
+	int nHeadY = HEIGHT / 2;
+	int nSize = 5;
+	
+	// Insert Snake
+	int i;
 	for (i = 0; i < nSize; ++i)
 		game[nHeadX + (nHeadY - i) * WIDTH] = i;
 
+	// Target variables
+	int nTgtX = nHeadX + WIDTH / 8;
+	int nTgtY = nHeadY + HEIGHT / 8;
+
+	// Insert Target
 	game[nTgtY * WIDTH + nTgtX] = TARGET;
 
+	// Timing variables
+	LARGE_INTEGER startTime, endTime, uSecs;
+	LARGE_INTEGER frequency;
+	QueryPerformanceFrequency (&frequency);
+	QueryPerformanceCounter (&startTime);
+
+	// Input variables
+	Direction current = NONE;
+	Direction previous = DOWN;
 
 	while (1)
 	{
-		// Process Input		
-		ProcessInput (game, &nHeadX, &nHeadY);
+		// Read Input		
+		current = ReadInput ();
+		if (current == QUIT) break;
 
 		// Game logic
-		if (nHeadY == nTgtY && nHeadX == nTgtX)
+		if (current == NONE) current = previous;
+		switch (current)
 		{
+			case UP:	nHeadY--; break;
+			case LEFT:	nHeadX--; break;
+			case DOWN:	nHeadY++; break;
+			case RIGHT: nHeadX++; break;
+			default: break;
+		}
+		previous = current;
+
+		// Collision Check
+		int nextSpace = game[nHeadY * WIDTH + nHeadX];
+		if (nextSpace != GROUND && nextSpace != TARGET) break; // Collided with wall or itself
+		else if (nextSpace == TARGET)
+		{	
 			int available = 0;
 			do
 			{
-				nTgtY = rand() % (HEIGHT - 2);
-				nTgtX = rand() % (WIDTH - 2);
-				
-				
+				// Generate new random target position
+				nTgtY = (rand() % (HEIGHT - 2)) + 1;
+				nTgtX = (rand() % (WIDTH  - 2)) + 1;
+
+				// Check if spot is available
+				if (game[nTgtY * WIDTH + nTgtX] ==  GROUND)
+				{
+					game[nTgtY * WIDTH + nTgtX] = TARGET;
+					available = 1;
+				}		
+
 			} while (!available);
 
+			game[nHeadY * WIDTH + nHeadX] = GROUND;
 			nSize++;
 		}
+		MoveSnakeRecursive (game, nHeadX, nHeadY, nSize);
 
 		// Draw
 		DrawGame (game, pxChars, pxColors);
+
+		// Timing
+		uSecs.QuadPart = 0;
+		while (uSecs.QuadPart < 1000000 / FPS) 
+		{
+			QueryPerformanceCounter (&endTime);
+			uSecs.QuadPart = endTime.QuadPart - startTime.QuadPart;
+			uSecs.QuadPart *= 1000000;
+			uSecs.QuadPart /= frequency.QuadPart;
+		}
+		startTime.QuadPart = endTime.QuadPart;
 	}
 }
 
-void ProcessInput (int* game, int* nHeadX, int* nHeadY)
+Direction ReadInput ()
 {
-	if (GetAsyncKeyState('A') & 0x8000)	*nHeadX = (*nHeadX - 1) % WIDTH;
-	else if (GetAsyncKeyState('W') & 0x8000) *nHeadY = (*nHeadY - 1) % HEIGHT;
-	else if (GetAsyncKeyState('D') & 0x8000) *nHeadX = (*nHeadX + 1) % WIDTH;
-	else if (GetAsyncKeyState('S') & 0x8000) *nHeadY = (*nHeadY + 1) % HEIGHT;
-	else return;
-	
-	// Move Snake
-	MoveSnakeRecursive(game, *nHeadX, *nHeadY);	
+	if (GetAsyncKeyState('A') & 0x8000)	return LEFT;
+	else if (GetAsyncKeyState('W') & 0x8000) return UP;
+	else if (GetAsyncKeyState('D') & 0x8000) return RIGHT;
+	else if (GetAsyncKeyState('S') & 0x8000) return DOWN;
+	else if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) return QUIT;
+	else return NONE;
 }
 
-void MoveSnakeRecursive (int* game, int x, int y)
+void MoveSnakeRecursive (int* game, int x, int y, int nSize)
 {
 	char aux = game[y * WIDTH + x] + 1;
-	if (game[y * WIDTH + x - 1] ==  aux) MoveSnakeRecursive(game, x - 1, y);
-	else if (game[(y - 1) * WIDTH + x] ==  aux) MoveSnakeRecursive(game, x, y - 1);
-	else if (game[(y + 1) * WIDTH + x] ==  aux) MoveSnakeRecursive(game, x, y + 1);
-	else if (game[y * WIDTH + x + 1] ==  aux) MoveSnakeRecursive(game, x + 1, y);
+	if (game[y * WIDTH + x - 1] ==  aux) MoveSnakeRecursive(game, x - 1, y, nSize);
+	else if (game[(y - 1) * WIDTH + x] ==  aux) MoveSnakeRecursive(game, x, y - 1, nSize);
+	else if (game[(y + 1) * WIDTH + x] ==  aux) MoveSnakeRecursive(game, x, y + 1, nSize);
+	else if (game[y * WIDTH + x + 1] ==  aux) MoveSnakeRecursive(game, x + 1, y, nSize);
 	else
 	{
-		game[y * WIDTH + x] = GROUND;
+		if (nSize == aux + 1) game[y * WIDTH + x] = aux;
+		else game[y * WIDTH + x] = GROUND;
 		return;
 	}
 
@@ -181,6 +239,4 @@ void DrawGame (int* game, char* pxChars, WORD* pxColors)
 	DWORD nCharsWritten;
 	WriteConsoleOutputCharacter (hConsole, pxChars, SCREEN, cZero, &nCharsWritten);
 	WriteConsoleOutputAttribute (hConsole, pxColors, SCREEN, cZero, &nCharsWritten);
-
-
 }
