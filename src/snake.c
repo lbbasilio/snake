@@ -71,7 +71,7 @@ int Init (int nScreenWidth, int nScreenHeight)
 	SetConsoleScreenBufferSize (hConsole, coordBufferSize); 
 
 	// Bind buffer to console
-	SetConsoleTitle("Console Engine");
+	SetConsoleTitle("Snake");
 	SetConsoleActiveScreenBuffer (hConsole);
 
 	return 0;
@@ -140,6 +140,15 @@ void GameLoop (char* pxChars, WORD* pxColors)
 
 		// Game logic
 		if (current == NONE) current = previous;
+		switch (current)
+		{
+			case UP:	if (previous == DOWN)	current = previous; break;	
+			case LEFT:	if (previous == RIGHT) 	current = previous; break;	
+			case DOWN:	if (previous == UP) 	current = previous; break;	
+			case RIGHT:	if (previous == LEFT) 	current = previous; break;	
+			default: break;
+		}
+
 		switch (current)
 		{
 			case UP:	nHeadY--; break;
